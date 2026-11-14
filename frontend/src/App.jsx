@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Bell, Home, Map as MapIcon, Route as RouteIcon, ShieldCheck, Sparkles } from 'lucide-react'
+import { Bell, Home, Map as MapIcon, MapPinned, Newspaper, Route as RouteIcon, ShieldCheck, Sparkles } from 'lucide-react'
 import { gridDisk, latLngToCell } from 'h3-js'
 
 import { useReporterToken } from './hooks/useReporterToken'
@@ -29,6 +29,8 @@ import RouteEscortDrawer from './components/route/RouteEscortDrawer'
 import AlertsAndMonitorsPanel from './components/alerts/AlertsAndMonitorsPanel'
 import AgencyDashboardPanel from './components/agency/AgencyDashboardPanel'
 import PulseChatbotPanel from './components/chat/PulseChatbotPanel'
+import NewsPanel from './components/news/NewsPanel'
+import PlacesPanel from './components/places/PlacesPanel'
 import OfflineNotice from './components/common/OfflineNotice'
 import HomePage from './components/home/HomePage'
 import { Sidebar, MobileHeader } from './components/layout/Chrome'
@@ -42,8 +44,10 @@ const NAV = [
   { id: 'agency', label: 'Agency HQ', hint: 'Triage & dispatch desk', Icon: ShieldCheck },
   { id: 'chat', label: 'Pulse AI', hint: 'Ask anything', Icon: Sparkles },
   { id: 'alerts', label: 'Alerts & Places', hint: 'Watch zones & inbox', Icon: Bell },
+  { id: 'news', label: 'Nigeria News', hint: 'Read newsroom updates', Icon: Newspaper },
+  { id: 'places', label: 'Explore Places', hint: 'Find fun places nearby', Icon: MapPinned },
 ]
-const MORE_IDS = ['route', 'agency', 'alerts']
+const MORE_IDS = ['route', 'agency', 'alerts', 'news', 'places']
 
 export default function App() {
   useReporterToken() // ensures persistent zero-login UUID exists in localStorage
@@ -442,6 +446,10 @@ export default function App() {
           )}
 
           {tab === 'chat' && <PulseChatbotPanel incidents={incidents} onFlyToPlace={flyTo} />}
+
+          {tab === 'news' && <NewsPanel onFlyToPlace={flyTo} />}
+
+          {tab === 'places' && <PlacesPanel onFlyToPlace={flyTo} />}
 
           {/* The map stays mounted once opened, so your camera position survives tab switches */}
           {mapMounted && (

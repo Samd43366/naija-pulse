@@ -189,6 +189,7 @@ def main():
                 "title": art["title"][:115],
                 "summary": summary or art["title"],
                 "news_outlet": f"{outlet} (Live RSS)",
+                "url": art.get("link"),
                 "state_name": loc.get("sub", "Nigeria").replace(" State", ""),
                 "lga_name": loc["name"],
                 "lat": round(float(loc["lat"]), 4),

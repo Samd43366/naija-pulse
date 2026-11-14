@@ -13,6 +13,7 @@ from app.api.v1.webhooks import router as webhooks_router
 from app.api.v1.media import router as media_router
 from app.api.v1.hex_stats import router as hex_stats_router
 from app.api.v1.chat import router as chat_router
+from app.api.v1.news import router as news_router
 
 settings = get_settings()
 
@@ -61,6 +62,7 @@ app.include_router(webhooks_router, prefix=settings.API_V1_PREFIX)
 app.include_router(media_router, prefix=settings.API_V1_PREFIX)
 app.include_router(hex_stats_router, prefix=settings.API_V1_PREFIX)
 app.include_router(chat_router, prefix=settings.API_V1_PREFIX)
+app.include_router(news_router, prefix=settings.API_V1_PREFIX)
 
 
 from app.services.memory_store import memory_get_incidents_count
