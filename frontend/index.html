@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport-fit=cover lets the app use the full screen; maximum-scale=1.0 prevents iOS mobile viewport panning/wobble on input focus -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#f4f6f2" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="description" content="Naija Pulse: real-time community incident reporting, area intelligence and AI safety assistant for all 36 states and the FCT." />
+    <title>Naija Pulse · Live Nigeria Safety Intelligence</title>
+    <!-- Apply the saved (or OS-preferred) theme before first paint to avoid a white/dark flash -->
+    <script>
+      try {
+        var saved = localStorage.getItem('naija-pulse-theme')
+        var theme = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        document.documentElement.setAttribute('data-theme', theme)
+        var meta = document.querySelector('meta[name="theme-color"]')
+        if (meta) meta.setAttribute('content', theme === 'dark' ? '#090e0c' : '#f4f6f2')
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
