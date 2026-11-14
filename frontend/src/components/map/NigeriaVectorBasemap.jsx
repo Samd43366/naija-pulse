@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import L from 'leaflet'
-import { GeoJSON, Marker, Pane, Polyline, useMap, useMapEvents } from 'react-leaflet'
+import { GeoJSON, Marker, Pane, Polyline, Popup, useMap, useMapEvents } from 'react-leaflet'
 
 // Hypsometric (elevation) color scale — dark-mode physical cartography palette
 const TOPO_STYLES = {
@@ -747,13 +747,21 @@ export default function NigeriaVectorBasemap({
             <Marker
               key={`plc-${p.name}`}
               position={[p.lat, p.lng]}
-              interactive={false}
+              interactive
               icon={makeTextIcon(
                 `<div style="color:${P.place};font-size:9px;font-weight:600;text-shadow:${P.halo};text-align:center;white-space:nowrap;">${emoji} ${p.name}</div>`,
                 165,
                 16,
               )}
-            />
+            >
+              <Popup>
+                <div className="min-w-[150px] p-1">
+                  <div className="text-sm font-bold">{emoji} {p.name}</div>
+                  <div className="mt-1 text-xs text-slate-500">{p.sub || p.kind}</div>
+                  <div className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Explore this place</div>
+                </div>
+              </Popup>
+            </Marker>
           )
         })}
 

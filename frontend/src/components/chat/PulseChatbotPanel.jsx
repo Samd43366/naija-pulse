@@ -11,6 +11,8 @@ const STARTER_PROMPTS = [
   { emoji: '☎️', label: 'Emergency hotlines', prompt: 'What are the official emergency phone numbers in Nigeria?' },
   { emoji: '🧠', label: 'How trust scores work', prompt: 'Explain how Naija Pulse Bayesian trust and privacy protection work' },
   { emoji: '🏛️', label: 'Kano live report', prompt: 'What incidents are active in Kano state?' },
+  { emoji: '📰', label: 'Latest Nigeria news', prompt: 'What are the latest news headlines in Nigeria?' },
+  { emoji: '✨', label: 'Places to explore', prompt: 'What fun places can I visit in Lagos?' },
 ]
 
 // Safe inline formatter for **bold**, `code`, and *italic* without dangerouslySetInnerHTML
@@ -167,7 +169,7 @@ export default function PulseChatbotPanel({ incidents, onFlyToPlace }) {
           <div>
             <h1 className="font-display text-base font-extrabold text-ink sm:text-lg">Pulse AI</h1>
             <p className="text-[11px] text-ink-3">
-              Grounded in {incidents.length.toLocaleString()} live incidents · no API key needed
+              Grounded in {incidents.length.toLocaleString()} live incidents, Nigeria news, and the places atlas
             </p>
           </div>
         </div>

@@ -32,6 +32,8 @@ from app.config import PROJECT_ROOT, get_settings
 
 settings = get_settings()
 SEED_PATH = PROJECT_ROOT / "frontend" / "public" / "geo" / "nigeria_incidents_seed.json"
+NEWS_PATH = PROJECT_ROOT / "frontend" / "src" / "data" / "researchedNewsSeed.json"
+PLACES_PATH = PROJECT_ROOT / "frontend" / "public" / "geo" / "nigeria_cities_detail.json"
 
 STOPWORDS = {
     "a", "an", "the", "is", "are", "was", "were", "be", "been", "being", "in", "on", "at",
@@ -272,6 +274,8 @@ class TrainedTfidfIndex:
 
 _INDEX = TrainedTfidfIndex(TRAINING_CORPUS)
 _CACHED_SEED: list[dict[str, Any]] | None = None
+_CACHED_NEWS: list[dict[str, Any]] | None = None
+_CACHED_PLACES: list[dict[str, Any]] | None = None
 
 
 def load_seed_incidents() -> list[dict[str, Any]]:
@@ -279,6 +283,27 @@ def load_seed_incidents() -> list[dict[str, Any]]:
     if _CACHED_SEED is None and SEED_PATH.exists():
         _CACHED_SEED = json.loads(SEED_PATH.read_text(encoding="utf-8"))
     return _CACHED_SEED or []
+
+
+def load_news_items() -> list[dict[str, Any]]:
+    global _CACHED_NEWS
+    if _CACHED_NEWS is None and NEWS_PATH.exists():
+        try:
+            _CACHED_NEWS = json.loads(NEWS_PATH.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            _CACHED_NEWS = []
+    return _CACHED_NEWS or []
+
+
+def load_places() -> list[dict[str, Any]]:
+    global _CACHED_PLACES
+    if _CACHED_PLACES is None and PLACES_PATH.exists():
+        try:
+            payload = json.loads(PLACES_PATH.read_text(encoding="utf-8"))
+            _CACHED_PLACES = payload.get("places", [])
+        except (OSError, json.JSONDecodeError):
+            _CACHED_PLACES = []
+    return _CACHED_PLACES or []
 
 
 def _safe_eval_math(expr: str) -> float | None:
@@ -414,6 +439,44 @@ def answer_question(question: str, client_incidents: list[dict[str, Any]] | None
     matched_cat = _detect_category(q_lower)
     kb_hits = _INDEX.search(q, top_k=2)
     kb_context = "\n\n".join(doc["answer"] for _, doc in kb_hits)
+
+    # Newsroom retrieval: keep headlines and summaries separate from incident
+    # confidence so readers can see that a news story is sourced reporting.
+    if any(token in q_lower for token in ("news", "headline", "headlines", "latest story", "latest stories", "news update")):
+        news = load_news_items()
+        if matched_states:
+            news = [item for item in news if item.get("state_name") in matched_states] or news
+        news = news[:6]
+        bullets = "\n".join(
+            f"- **{item.get('title')}** — *{item.get('news_outlet') or item.get('source') or 'Newsroom'}* ({item.get('state_name') or 'Nigeria'})\n  {item.get('summary') or ''}"
+            for item in news
+        )
+        first = news[0] if news else {}
+        return {
+            "reply": f"### 📰 Nigeria News Desk\n{bullets or '- No cached headlines match that request.'}\n\n*Open the News tab to search the full feed and open original sources.*",
+            "engine": "PulseAI News Retrieval",
+            "map_action": ({"label": f"View news near {first.get('lga_name') or first.get('state_name')}", "lat": first.get("lat", 9.08), "lng": first.get("lng", 8.68), "zoom": 11} if first else None),
+        }
+
+    # Discovery retrieval: use the atlas for fun, cultural, natural, and civic places.
+    if any(token in q_lower for token in ("fun place", "interesting place", "where to visit", "tourist", "beach", "museum", "park", "waterfall", "landmark", "things to do")):
+        places = load_places()
+        if matched_states:
+            state_name = matched_states[0].replace("FCT ", "")
+            places = [p for p in places if state_name.lower() in str(p.get("sub", "")).lower()] or places
+        query_words = [word for word in re.findall(r"[a-z]+", q_lower) if len(word) > 3]
+        if query_words:
+            matched = [p for p in places if any(word in f"{p.get('name', '')} {p.get('kind', '')} {p.get('sub', '')}".lower() for word in query_words)]
+            if matched:
+                places = matched
+        places = places[:6]
+        bullets = "\n".join(f"- **{p.get('name')}** — {p.get('kind', 'place')} ({p.get('sub', 'Nigeria')})" for p in places)
+        first = places[0] if places else {}
+        return {
+            "reply": f"### ✨ Places to Explore\n{bullets or '- No atlas places matched that request.'}\n\n*Open Explore Places for searchable cards and map navigation.*",
+            "engine": "PulseAI Nigeria Places Atlas",
+            "map_action": ({"label": f"Explore {first.get('name')}", "lat": first.get("lat", 9.08), "lng": first.get("lng", 8.68), "zoom": 13} if first else None),
+        }
 
     # Build concise spatial summary for RAG / direct response
     spatial_summary_lines = [
