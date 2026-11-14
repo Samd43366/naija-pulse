@@ -10,6 +10,8 @@ export function backendLabel(backend) {
       return { text: 'AI online', tone: 'info' }
     case 'offline':
       return { text: 'Offline mode', tone: 'warn' }
+    case 'unavailable':
+      return { text: 'Live data unavailable', tone: 'warn' }
     default:
       return { text: 'Connecting…', tone: 'muted' }
   }

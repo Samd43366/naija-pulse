@@ -108,7 +108,8 @@ export default function App() {
     if (showMap) setMapMounted(true)
   }, [showMap])
 
-  const isOfflineDemo = backend !== 'online'
+  const isOfflineDemo = backend === 'api_ready'
+  const liveUnavailable = backend === 'unavailable'
   const voterCoords = gpsPosition || mapCenter
 
   useEffect(() => {
@@ -137,6 +138,7 @@ export default function App() {
   // --- Handlers (talk to FastAPI when online, or mirror logic locally in demo mode) ---
 
   async function handleSubmitReport(reportPayload) {
+    if (liveUnavailable) throw new Error('Live data is unavailable. Connect the backend before submitting a real report.')
     if (!isOfflineDemo) {
       const res = await submitReport(reportPayload)
       await syncFromBackend()
@@ -170,6 +172,7 @@ export default function App() {
   }
 
   async function handleVote(incident, votePayload) {
+    if (liveUnavailable) throw new Error('Live data is unavailable. Connect the backend before verifying a report.')
     const res = !isOfflineDemo
       ? await verifyIncident(incident.id, votePayload)
       : simulateOfflineVerify(incident, votePayload)

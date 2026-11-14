@@ -29,7 +29,10 @@ async def lifespan(app: FastAPI):
         await init_db_pool()
         print("Database connection pool established successfully.")
     except Exception as e:
-        print(f"Notice: PostgreSQL pool unavailable ({e}). Running in JSON Seed + PulseAI Live Mode.")
+        if settings.LIVE_MODE:
+            print(f"Live mode startup failed: PostgreSQL is unavailable ({e}).")
+            raise RuntimeError("LIVE_MODE requires a working PostgreSQL/PostGIS connection") from e
+        print(f"Notice: PostgreSQL pool unavailable ({e}). Running in development seed fallback mode.")
 
     yield
 
@@ -71,13 +74,15 @@ from app.services.memory_store import memory_get_incidents_count
 async def health_check():
     db_ok = is_db_pool_ready()
     return {
-        "status": "online",
+        "status": "online" if db_ok or not settings.LIVE_MODE else "degraded",
         "db_connected": db_ok,
-        "storage": "postgres" if db_ok else "in_memory_seed",
+        "storage": "postgres" if db_ok else ("unavailable" if settings.LIVE_MODE else "in_memory_seed"),
+        "live_mode": settings.LIVE_MODE,
+        "demo_mode": not settings.LIVE_MODE and not db_ok,
         "platform": "Naija Pulse",
         "environment": settings.ENVIRONMENT,
         "h3_cluster_res": settings.H3_CLUSTER_RESOLUTION,
-        "incidents_count": memory_get_incidents_count() if not db_ok else "postgres_live",
+        "incidents_count": memory_get_incidents_count() if not db_ok and not settings.LIVE_MODE else ("unavailable" if not db_ok else "postgres_live"),
     }
 
 

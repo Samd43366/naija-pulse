@@ -9,6 +9,9 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
+    # Production must set LIVE_MODE=true. In that mode database failure is a
+    # startup error and seed data is never presented as current information.
+    LIVE_MODE: bool = False
     API_V1_PREFIX: str = "/api/v1"
     SECRET_KEY: str = "naija_pulse_dev_secret_key_2026_super_secure"
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173"

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiRequest } from '../api/client'
 import { fetchHexStats, rateHexArea } from '../api/hexStats'
 import { fetchIncidents } from '../api/incidents'
@@ -6,28 +6,38 @@ import { buildInitialDemoHexStats, buildInitialDemoIncidents, loadNationwideSeed
 import { normalizeIncident, normalizeIncidents } from '../lib/incidentModel'
 
 export function useIncidentFeed({ category, withinHours, mapCenter, onBackendChange }) {
-  const [incidents, setIncidents] = useState(() => normalizeIncidents(buildInitialDemoIncidents()))
-  const [hexStats, setHexStats] = useState(() => {
-    const initial = normalizeIncidents(buildInitialDemoIncidents())
-    return buildInitialDemoHexStats(initial)
-  })
+  const [incidents, setIncidents] = useState([])
+  const [hexStats, setHexStats] = useState([])
+  const demoLoadedRef = useRef(false)
 
-  useEffect(() => {
-    let cancelled = false
-    loadNationwideSeedIncidents().then((fullList) => {
-      if (cancelled) return
+  const loadDemoData = useCallback(async () => {
+    if (demoLoadedRef.current) return
+    demoLoadedRef.current = true
+    const initial = normalizeIncidents(buildInitialDemoIncidents())
+    setIncidents(initial)
+    setHexStats(buildInitialDemoHexStats(initial))
+    try {
+      const fullList = await loadNationwideSeedIncidents()
       const normalized = normalizeIncidents(fullList)
-      setIncidents((prev) => (prev.length < normalized.length ? normalized : prev))
+      setIncidents(normalized)
       setHexStats(buildInitialDemoHexStats(normalized))
-    }).catch(() => {})
-    return () => { cancelled = true }
+    } catch {
+      // The smaller bundled set remains available in development mode.
+    }
   }, [])
 
   const syncFromBackend = useCallback(async () => {
     try {
       const health = await apiRequest('/health')
       if (!health?.db_connected) {
-        onBackendChange?.('api_ready')
+        if (health?.live_mode) {
+          setIncidents([])
+          setHexStats([])
+          onBackendChange?.('unavailable')
+        } else {
+          await loadDemoData()
+          onBackendChange?.('api_ready')
+        }
         return
       }
       const [liveIncidents, liveStats] = await Promise.all([
@@ -40,7 +50,7 @@ export function useIncidentFeed({ category, withinHours, mapCenter, onBackendCha
     } catch {
       onBackendChange?.('offline')
     }
-  }, [category, withinHours, mapCenter.lat, mapCenter.lng, onBackendChange])
+  }, [category, withinHours, mapCenter.lat, mapCenter.lng, onBackendChange, loadDemoData])
 
   useEffect(() => {
     syncFromBackend()
