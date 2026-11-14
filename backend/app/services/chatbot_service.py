@@ -85,6 +85,24 @@ STATE_CAPITALS: dict[str, tuple[str, str, float, float]] = {
     "Zamfara": ("Gusau", "North-West", 12.1702, 6.6641),
 }
 
+ROUTE_CORRIDORS = {
+    "lagos_ibadan": {
+        "label": "Lagos → Ibadan",
+        "points": [(6.5244, 3.3792), (6.70, 3.52), (7.05, 3.75), (7.3775, 3.947)],
+        "midpoint": (6.95, 3.66),
+    },
+    "abuja_kaduna": {
+        "label": "Abuja → Kaduna",
+        "points": [(9.0765, 7.3986), (9.55, 7.30), (10.5105, 7.4165)],
+        "midpoint": (9.80, 7.38),
+    },
+    "lagos_benin": {
+        "label": "Lagos → Benin City",
+        "points": [(6.5244, 3.3792), (6.90, 3.55), (7.85, 3.95), (6.335, 5.6037)],
+        "midpoint": (6.70, 4.35),
+    },
+}
+
 CAT_LABELS = {
     "power_outage": "⚡ Power Outage",
     "flood": "🌊 Flood",
@@ -364,6 +382,20 @@ def _detect_category(q_lower: str) -> str | None:
     return None
 
 
+def _distance_to_route_km(lat: float, lng: float, points: list[tuple[float, float]]) -> float:
+    """Approximate point-to-polyline distance for conversational route triage."""
+    best = float("inf")
+    lat_scale = 111.0
+    lng_scale = 111.0 * math.cos(math.radians(lat))
+    for (a_lat, a_lng), (b_lat, b_lng) in zip(points, points[1:]):
+        ax, ay = (a_lng - lng) * lng_scale, (a_lat - lat) * lat_scale
+        bx, by = (b_lng - lng) * lng_scale, (b_lat - lat) * lat_scale
+        dx, dy = bx - ax, by - ay
+        t = max(0.0, min(1.0, -(ax * dx + ay * dy) / max(dx * dx + dy * dy, 1e-9)))
+        best = min(best, math.sqrt((ax + t * dx) ** 2 + (ay + t * dy) ** 2))
+    return best
+
+
 def _try_gemini_rag(question: str, spatial_context: str, kb_context: str) -> str | None:
     if not settings.GEMINI_API_KEY:
         return None
@@ -439,6 +471,53 @@ def answer_question(question: str, client_incidents: list[dict[str, Any]] | None
     matched_cat = _detect_category(q_lower)
     kb_hits = _INDEX.search(q, top_k=2)
     kb_context = "\n\n".join(doc["answer"] for _, doc in kb_hits)
+
+    # Route-aware travel questions must win over a generic state summary. This
+    # gives a useful corridor answer while directing users to the full Route
+    # Escort scan for an actual street geometry and H3 corridor check.
+    requested_route = None
+    if "lagos" in q_lower and "ibadan" in q_lower:
+        requested_route = ROUTE_CORRIDORS["lagos_ibadan"]
+    elif "abuja" in q_lower and "kaduna" in q_lower:
+        requested_route = ROUTE_CORRIDORS["abuja_kaduna"]
+    elif "lagos" in q_lower and ("benin" in q_lower or "ore" in q_lower):
+        requested_route = ROUTE_CORRIDORS["lagos_benin"]
+
+    if requested_route and any(token in q_lower for token in ("travel", "travelling", "trip", "drive", "road", "safe", "problem", "going", "route")):
+        route_incidents = []
+        for item in incidents:
+            lat = float(item.get("latitude") or item.get("lat") or 0)
+            lng = float(item.get("longitude") or item.get("lng") or 0)
+            if _distance_to_route_km(lat, lng, requested_route["points"]) <= 20:
+                route_incidents.append(item)
+        route_incidents.sort(key=lambda item: float(item.get("trust_score") or 0), reverse=True)
+        security = [i for i in route_incidents if i.get("category_code") == "kidnapping_security" and float(i.get("trust_score") or 0) >= 0.4]
+        floods = [i for i in route_incidents if i.get("category_code") == "flood" and float(i.get("trust_score") or 0) >= 0.4]
+        road_hazards = [i for i in route_incidents if i.get("category_code") == "road_condition" and float(i.get("trust_score") or 0) >= 0.4]
+        if len(security) >= 2:
+            rating = "high alert"
+            recommendation = "Delay or use a verified alternative if you can; travel in daylight and check the route again immediately before departure."
+        elif security or floods or road_hazards:
+            rating = "caution"
+            recommendation = "Travel in daylight, allow extra time, and check the Route Escort corridor before leaving."
+        else:
+            rating = "no matching active hazard found"
+            recommendation = "That is not a guarantee of safety. Check Route Escort immediately before departure and keep emergency contacts available."
+        evidence = "\n".join(
+            f"- **{item.get('title')}** ({item.get('lga_name') or item.get('state_name') or 'corridor'}, signal {int(float(item.get('trust_score') or 0) * 100)}%)"
+            for item in route_incidents[:4]
+        )
+        return {
+            "reply": (
+                f"### 🛣️ {requested_route['label']} travel check\n"
+                f"**Current reading:** **{rating}** based on **{len(route_incidents)} matching reports** within roughly 20 km of this corridor.\n\n"
+                f"{recommendation}\n\n"
+                f"**Relevant evidence:**\n{evidence or '- No active incident in the current cached corridor data.'}\n\n"
+                "This is decision support from cached community, newsroom, and official reports—not a guarantee that the road is safe. Open **Route Escort** for the live route scan."
+            ),
+            "engine": "PulseAI Route Intelligence",
+            "map_action": {"label": f"Open {requested_route['label']} on Map", "lat": requested_route["midpoint"][0], "lng": requested_route["midpoint"][1], "zoom": 9},
+        }
 
     # Newsroom retrieval: keep headlines and summaries separate from incident
     # confidence so readers can see that a news story is sourced reporting.
